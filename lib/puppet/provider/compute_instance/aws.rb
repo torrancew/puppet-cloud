@@ -1,27 +1,33 @@
-require 'fog'
+require 'json'
 
 Puppet::Type.type(:compute_instance).provide(:aws) do
-  def self.connection
-    @connection ||= Fog::Compute.new({:provider => 'AWS', :region => 'us-west-2'})
-  end
-
-  def self.find(filters)
-    connection.servers.find(filters)
-  end
+  commands :aws => 'aws'
 
   def self.instances
-    connection.servers.collect do |server|
-      new(
-        :name           => server.tags['Name'] || server.id,
-        :ensure         => (server.state.match(/terminat/) ? :absent : :present),
-        :image          => server.image_id,
-        :metadata       => server.tags.reject{ |key, _| key == 'Name' },
-        :subnet         => server.subnet_id,
-        :type           => server.flavor_id,
-        :virtualization => server.virtualization_type,
-        :vpc            => server.vpc_id,
-      )
-    end
+    api_output = aws('--output', 'json', 'ec2', 'describe-instances')
+    api_object = JSON.parse(api_output)
+
+    api_object['Reservations'].map do |r|
+      r['Instances'].map do |i|
+
+        tags = Hash.new
+        i['Tags'].each do |t|
+          tags[t['Key']] = t['Value']
+        end
+
+        new({
+          :name            => (tags['Name'] || i['InstanceId']),
+          :ensure          => (i['State']['Name'].match(/terminat/) ? :absent : :present),
+          :firewall_groups => i['SecurityGroups'].map{ |g| g['GroupName'] },
+          :image           => i['ImageId'],
+          :metadata        => tags.reject{ |k, _| k == 'Name' },
+          :subnet         => i['NetworkInterfaces'].map{ |iface| iface['SubnetId'] }.first,
+          :type            => i['InstanceType'],
+          :virtualization  => i['VirtualizationType'],
+          :vpc             => i['VpcId'],
+        })
+      end
+    end.flatten
   end
 
   def self.prefetch(resources)
@@ -39,35 +45,42 @@ Puppet::Type.type(:compute_instance).provide(:aws) do
     @property_hash[:ensure] == :present
   end
 
-  def reload!
-    server = self.class.connection.servers.find{ |s| s.tags['Name'] == resource[:name] }
-    @property_hash[:name]           = server.tags['Name'] || server.id
-    @property_hash[:ensure]         = (server.state.match(/terminat/) ? :absent : :present)
-    @property_hash[:image]          = server.image_id
-    @property_hash[:metadata]       = server.tags.reject{ |key, _| key == 'Name' }
-    @property_hash[:subnet]         = server.subnet_id
-    @property_hash[:type]           = server.flavor_id
-    @property_hash[:virtualization] = server.virtualization_type
-    @property_hash[:vpc]            = server.vpc_id
-  end
-
   def create
-    tags = (resource[:metadata] || {}).merge({'Name' => resource[:name]})
-    server = self.class.connection.servers.create({
-      :image_id            => resource[:image],
-      :tags                => tags,
-      :subnet_id           => resource[:subnet],
-      :flavor_id           => resource[:type],
-      :virtualization_type => resource[:virtualization],
-      :vpc_id              => resource[:vpc],
-    })
-    server.wait_for{ ready? }
-    reload!
+    tags = []
+    (resource[:metadata] || {}).merge({'Name': resource[:name]}).each do |k, v|
+      tags <<= "{Key=#{k},Value=#{v}}"
+    end
+
+    opts = {
+      '--image-id'           => resource[:image],
+      '--instance-type'      => resource[:type],
+      '--security-group-ids' => resource[:firewall_groups],
+      '--subnet-id'          => resource[:subnet],
+      '--tag-specifications' => "ResourceType=instance,Tags=[#{tags.join(',')}]",
+    }
+    opts['--user-data'] = resource[:user_data] if resource[:user_data]
+
+    args   = []
+    opts.each do |key, value|
+      args <<= key
+      args <<= value
+    end
+    args <<= '--dry-run' if resource[:noop]
+
+    aws('--output', 'json', 'ec2', 'run-instances', *args)
+    @property_hash[:ensure] = :present
   end
 
   def destroy
-    server = self.class.connection.servers.find{ |s| s.tags['Name'] == resource[:name] }
-    server.destroy
-    reload!
+    args   = []
+    args <<= '--dry-run' if resource[:noop]
+    aws('--output', 'json', 'ec2', 'terminate-instances', '--instance-ids', resource_id, *args)
+    @property_hash[:ensure] = :absent
+  end
+
+  def resource_id
+    api_output = aws('--output', 'json', 'ec2', 'describe-instances', '--filters', "Name=tag:Name,Values=#{resource[:name]}")
+    nodes = JSON.parse(api_output)
+    nodes['Reservations'].map{ |r| r['Instances'].map{ |i| i['InstanceId'] } }.flatten.first
   end
 end

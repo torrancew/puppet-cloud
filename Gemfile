@@ -4,9 +4,6 @@ PUPPET_VERSION = ENV['PUPPET_VERSION'] || '~> 4.10'
 
 gem 'puppet', PUPPET_VERSION
 
-gem 'fog'
-gem 'fog-aws'
-
 gem 'puppet-lint'
 gem 'semantic_puppet'
 gem 'metadata-json-lint'
