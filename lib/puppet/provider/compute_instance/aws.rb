@@ -11,20 +11,20 @@ Puppet::Type.type(:compute_instance).provide(:aws) do
       r['Instances'].map do |i|
 
         tags = Hash.new
-        i['Tags'].each do |t|
+        (i['Tags']||[]).each do |t|
           tags[t['Key']] = t['Value']
         end
 
         new({
-          :name            => (tags['Name'] || i['InstanceId']),
-          :ensure          => (i['State']['Name'].match(/terminat/) ? :absent : :present),
-          :firewall_groups => i['SecurityGroups'].map{ |g| g['GroupName'] },
-          :image           => i['ImageId'],
-          :metadata        => tags.reject{ |k, _| k == 'Name' },
+          :name           => (tags['Name'] || i['InstanceId']),
+          :ensure         => (i['State']['Name'].match(/terminat/) ? :absent : :present),
+          :firewall       => i['SecurityGroups'].map{ |g| g['GroupName'] }.first,
+          :image          => i['ImageId'],
+          :metadata       => tags.reject{ |k, _| k == 'Name' },
           :subnet         => i['NetworkInterfaces'].map{ |iface| iface['SubnetId'] }.first,
-          :type            => i['InstanceType'],
-          :virtualization  => i['VirtualizationType'],
-          :vpc             => i['VpcId'],
+          :type           => i['InstanceType'],
+          :virtualization => i['VirtualizationType'],
+          :vpc            => i['VpcId'],
         })
       end
     end.flatten
@@ -54,7 +54,7 @@ Puppet::Type.type(:compute_instance).provide(:aws) do
     opts = {
       '--image-id'           => resource[:image],
       '--instance-type'      => resource[:type],
-      '--security-group-ids' => resource[:firewall_groups],
+      '--security-group-ids' => resource[:firewall],
       '--subnet-id'          => resource[:subnet],
       '--tag-specifications' => "ResourceType=instance,Tags=[#{tags.join(',')}]",
     }

@@ -6,15 +6,15 @@ Puppet::Type.newtype(:compute_instance) do
     desc 'The name of the compute instance'
   end
 
-  newproperty(:firewall_groups) do
-    desc 'The security group IDs'
+  newproperty(:firewall) do
+    desc 'The firewall ID'
 
-    def is_to_s(value)
-      value.inspect
-    end
-
-    def should_to_s(value)
-      value.inspect
+    munge do |value|
+      if firewall = Puppet::Type.type(:firewall).instances.find{ |i| i.name == value }
+        firewall.provider.resource_id
+      else
+        value
+      end
     end
   end
 
@@ -56,6 +56,14 @@ Puppet::Type.newtype(:compute_instance) do
 
   newproperty(:vpc) do
     desc 'The name or ID of the VPC to deploy the instance to'
+
+    munge do |value|
+      if vpc = Puppet::Type.type(:vpc).instances.find{ |i| i.name == value }
+        vpc.provider.resource_id
+      else
+        value
+      end
+    end
   end
 
   newparam(:user_data) do
@@ -65,5 +73,9 @@ Puppet::Type.newtype(:compute_instance) do
 
   autorequire(:subnet) do
     self[:subnet]
+  end
+
+  autorequire(:vpc) do
+    self[:vpc]
   end
 end
