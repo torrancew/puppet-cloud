@@ -1,9 +1,9 @@
-Puppet::Type.newtype(:compute_instance) do
-  @doc = 'Manage a cloud compute instance.'
+Puppet::Type.newtype(:server) do
+  @doc = 'Manage a cloud server.'
 
   ensurable
   newparam(:name) do
-    desc 'The name of the compute instance'
+    desc 'The name of the server'
   end
 
   newproperty(:firewall) do
@@ -23,7 +23,7 @@ Puppet::Type.newtype(:compute_instance) do
   end
 
   newproperty(:metadata) do
-    desc 'The instance metadata'
+    desc 'The server metadata'
 
     def is_to_s(value)
       value.inspect
@@ -47,7 +47,7 @@ Puppet::Type.newtype(:compute_instance) do
   end
 
   newproperty(:type) do
-    desc 'The instance type'
+    desc 'The server type'
   end
 
   newproperty(:virtualization) do
@@ -55,7 +55,7 @@ Puppet::Type.newtype(:compute_instance) do
   end
 
   newproperty(:vpc) do
-    desc 'The name or ID of the VPC to deploy the instance to'
+    desc 'The name or ID of the VPC to deploy the server to'
 
     munge do |value|
       if vpc = Puppet::Type.type(:vpc).instances.find{ |i| i.name == value }
@@ -69,6 +69,10 @@ Puppet::Type.newtype(:compute_instance) do
   newparam(:user_data) do
     desc 'The user data to boot with'
     defaultto :undef
+  end
+
+  autorequire(:firewall) do
+    self[:firewall]
   end
 
   autorequire(:subnet) do

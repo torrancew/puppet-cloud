@@ -1,6 +1,6 @@
 require 'json'
 
-Puppet::Type.type(:compute_instance).provide(:aws) do
+Puppet::Type.type(:server).provide(:aws) do
   commands :aws => 'aws'
 
   def self.instances
