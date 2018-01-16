@@ -36,6 +36,14 @@ Puppet::Type.newtype(:compute_instance) do
 
   newproperty(:subnet) do
     desc 'The subnet ID'
+
+    munge do |value|
+      if subnet = Puppet::Type.type(:subnet).instances.find{ |i| i.name == value }
+        subnet.provider.resource_id
+      else
+        value
+      end
+    end
   end
 
   newproperty(:type) do
@@ -53,5 +61,9 @@ Puppet::Type.newtype(:compute_instance) do
   newparam(:user_data) do
     desc 'The user data to boot with'
     defaultto :undef
+  end
+
+  autorequire(:subnet) do
+    self[:subnet]
   end
 end
