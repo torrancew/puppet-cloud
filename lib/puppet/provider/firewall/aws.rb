@@ -1,11 +1,10 @@
-require 'json'
+require_relative '../../../puppet_x/cloud/aws'
 
 Puppet::Type.type(:firewall).provide(:aws) do
-  commands :aws => 'aws'
+  include PuppetX::Cloud::AWS
 
   def self.instances
-    api_output = aws('--output', 'json', 'ec2', 'describe-security-groups')
-    api_object = JSON.parse(api_output)
+    api_object = awscli('ec2', 'describe-security-groups')
 
     api_object['SecurityGroups'].map do |firewall|
       tags = {}
@@ -23,45 +22,24 @@ Puppet::Type.type(:firewall).provide(:aws) do
     end
   end
 
-  def self.prefetch(resources)
-    firewalls = instances
-    resources.keys.each do |name|
-      if provider = firewalls.find{ |firewall| firewall.name == name }
-        resources[name].provider = provider
-      end
-    end
-  end
-
-  mk_resource_methods
-
-  def exists?
-    @property_hash[:ensure] == :present
-  end
-
   def create
     tags = []
     (resource[:metadata] || {}).merge({'Name': resource[:name]}).each do |k, v|
       tags << "Key=#{k},Value=#{v}"
     end
 
-    args   = []
-    args <<= '--dry-run' if resource[:noop]
-    api_output = aws('--output', 'json', 'ec2', 'create-security-group', '--vpc-id', resource[:vpc], '--group-name', resource[:name], '--description', resource[:description], *args)
-    firewall     = JSON.parse(api_output)
-    aws('--output', 'json', 'ec2', 'create-tags', '--resource', firewall['GroupId'], '--tags', tags.join(' '), *args)
+    firewall = awscli('ec2', 'create-security-group', 'vpc-id' => resource[:vpc], 'group-name' => resource[:name], 'description' => resource[:description])
+    awscli('ec2', 'create-tags', 'resource', firewall['GroupId'], 'tags', tags.join(' '))
     @property_hash[:ensure] = :present
   end
 
   def destroy
-    args   = []
-    args <<= '--dry-run' if resource[:noop]
-    aws('--output', 'json', 'ec2', 'delete-security-group', '--group-id', resource_id, *args)
+    awscli('ec2', 'delete-security-group', 'group-id' => resource_id)
     @property_hash[:ensure] = :absent
   end
 
   def resource_id
-    api_output = aws('--output', 'json', 'ec2', 'describe-security-groups', '--filters', "Name=tag:Name,Values=#{resource[:name]}")
-    firewalls    = JSON.parse(api_output)
+    firewalls = awscli('ec2', 'describe-security-groups', '--filters', "Name=tag:Name,Values=#{resource[:name]}")
     firewalls['SecurityGroups'].map{ |firewall| firewall['GroupId'] }.first
   end
 end

@@ -1,11 +1,10 @@
-require 'json'
+require_relative '../../../puppet_x/cloud/aws'
 
 Puppet::Type.type(:iam_group).provide(:aws) do
-  commands :aws => 'aws'
+  include PuppetX::Cloud::AWS
 
   def self.instances
-    api_output = aws('--output', 'json', 'iam', 'list-groups')
-    api_object = JSON.parse(api_output)
+    api_object = awscli('iam', 'list-groups')
 
     api_object['Groups'].map do |group|
       new({
@@ -15,28 +14,13 @@ Puppet::Type.type(:iam_group).provide(:aws) do
     end
   end
 
-  def self.prefetch(resources)
-    groups = instances
-    resources.keys.each do |name|
-      if provider = groups.find{ |g| g.name == name }
-        resources[name].provider = provider
-      end
-    end
-  end
-
-  mk_resource_methods
-
-  def exists?
-    @property_hash[:ensure] == :present
-  end
-
   def create
-    aws('--output', 'json', 'iam', 'create-group', '--group-name', resource[:name])
+    awscli('iam', 'create-group', 'group-name' => resource[:name])
     @property_hash[:ensure] = :present
   end
 
   def destroy
-    aws('--output', 'json', 'iam', 'delete-group', '--group-name', resource[:name])
+    awscli('iam', 'delete-group', 'group-name' => resource[:name])
     @property_hash[:ensure] = :absent
   end
 end
