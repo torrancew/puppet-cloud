@@ -9,7 +9,6 @@ Puppet::Type.type(:server).provide(:aws) do
 
     api_object['Reservations'].map do |r|
       r['Instances'].map do |i|
-
         tags = Hash.new
         (i['Tags']||[]).each do |t|
           tags[t['Key']] = t['Value']
@@ -18,7 +17,7 @@ Puppet::Type.type(:server).provide(:aws) do
         new({
           :name           => (tags['Name'] || i['InstanceId']),
           :ensure         => (i['State']['Name'].match(/terminat/) ? :absent : :present),
-          :firewall       => i['SecurityGroups'].map{ |g| g['GroupName'] }.first,
+          :firewalls      => i['SecurityGroups'].map{ |g| g['GroupName'] },
           :image          => i['ImageId'],
           :metadata       => tags.reject{ |k, _| k == 'Name' },
           :subnet         => i['NetworkInterfaces'].map{ |iface| iface['SubnetId'] }.first,
@@ -39,7 +38,7 @@ Puppet::Type.type(:server).provide(:aws) do
     opts = {
       'image-id'           => resource[:image],
       'instance-type'      => resource[:type],
-      'security-group-ids' => resource[:firewall],
+      'security-group-ids' => resource[:firewalls].join(' '),
       'subnet-id'          => resource[:subnet],
       'tag-specifications' => "ResourceType=instance,Tags=[#{tags.join(',')}]",
     }

@@ -6,14 +6,16 @@ Puppet::Type.newtype(:server) do
     desc 'The name of the server'
   end
 
-  newproperty(:firewall) do
+  newproperty(:firewalls, :array_matching => :all) do
     desc 'The firewall ID'
 
-    munge do |value|
-      if firewall = Puppet::Type.type(:firewall).instances.find{ |i| i.name == value }
-        firewall.provider.resource_id
-      else
-        value
+    munge do |values|
+      values.map do |value|
+        if firewall = Puppet::Type.type(:firewall).instances.find{ |i| i.name == value }
+          firewall.provider.resource_id
+        else
+          value
+        end
       end
     end
   end
@@ -72,7 +74,7 @@ Puppet::Type.newtype(:server) do
   end
 
   autorequire(:firewall) do
-    self[:firewall]
+    self[:firewalls]
   end
 
   autorequire(:subnet) do
