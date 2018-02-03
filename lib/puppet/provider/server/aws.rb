@@ -2,9 +2,10 @@ require_relative '../../../puppet_x/cloud/aws'
 
 Puppet::Type.type(:server).provide(:aws) do
   include PuppetX::Cloud::AWS
+  service :ec2
 
   def self.instances
-    api_object = awscli('ec2', 'describe-instances')
+    api_object = ec2('describe-instances')
 
     api_object['Reservations'].map do |r|
       r['Instances'].map do |i|
@@ -44,17 +45,17 @@ Puppet::Type.type(:server).provide(:aws) do
     }
     opts['user-data'] = resource[:user_data] if resource[:user_data]
 
-    awscli('ec2', 'run-instances', opts)
+    ec2('run-instances', opts)
     @property_hash[:ensure] = :present
   end
 
   def destroy
-    awscli('ec2', 'terminate-instances', 'instance-ids' => resource_id)
+    ec2('terminate-instances', 'instance-ids' => resource_id)
     @property_hash[:ensure] = :absent
   end
 
   def resource_id
-    nodes = awscli('ec2', 'describe-instances', 'filters' => "Name=tag:Name,Values=#{resource[:name]}")
+    nodes = ec2('describe-instances', 'filters' => "Name=tag:Name,Values=#{resource[:name]}")
     nodes['Reservations'].map{ |r| r['Instances'].map{ |i| i['InstanceId'] } }.flatten.first
   end
 end

@@ -12,18 +12,32 @@ module PuppetX
       end
 
       module ClassMethods
-        def awscli(service, command, options={})
+        def awscli(svc, cmd, opts={})
           args = []
-          options.merge({'output' => 'json'}).each do |opt, val|
+          opts.merge({'output' => 'json'}).each do |opt, val|
             args <<= "--#{opt}"
             args <<= val unless [true, false].include?(val)
           end
-          return JSON.parse(aws(service.to_s, command.to_s, *args.map(&:to_s)))
+          return JSON.parse(aws(svc.to_s, cmd.to_s, *args.map(&:to_s)))
+        end
+
+        def service(svc)
+          self.class.instance_eval do
+            define_method(svc.to_sym) do |cmd, opts={}|
+              awscli(svc, cmd, opts)
+            end
+          end
+
+          self.instance_eval do
+            define_method(svc.to_sym) do |cmd, opts={}|
+              self.class.send(svc.to_sym, cmd, opts)
+            end
+          end
         end
 
         def tag(resource, metadata={})
           tags = metadata.keys.map{ |k| "Key=#{k},Value=#{metadata[k]}" }
-          return awscli('ec2', 'create-tags', 'resource' => resource, 'tags' => tags.join(' '))
+          return awscli(:ec2, 'create-tags', 'resource' => resource, 'tags' => tags.join(' '))
         end
 
         def prefetch(resources)
@@ -37,8 +51,8 @@ module PuppetX
       end
 
       module InstanceMethods
-        def awscli(service, command, options={})
-          self.class.awscli(service, command, options)
+        def awscli(svc, cmd, opts={})
+          self.class.awscli(svc, cmd, opts)
         end
 
         def tag(resource, metadata={})

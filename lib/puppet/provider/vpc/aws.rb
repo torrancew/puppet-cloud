@@ -2,9 +2,10 @@ require_relative '../../../puppet_x/cloud/aws'
 
 Puppet::Type.type(:vpc).provide(:aws) do
   include PuppetX::Cloud::AWS
+  service :ec2
 
   def self.instances
-    api_object = awscli('ec2', 'describe-vpcs')
+    api_object = ec2('describe-vpcs')
 
     api_object['Vpcs'].map do |vpc|
       tags = {}
@@ -27,18 +28,18 @@ Puppet::Type.type(:vpc).provide(:aws) do
       tags << "Key=#{k},Value=#{v}"
     end
 
-    vpc = awscli('ec2', 'create-vpc', 'cidr_block' => resource[:cidr])
-    awscli('ec2', 'create-tags', 'resource' => vpc['Vpc']['VpcId'], 'tags' => tags.join(' '))
+    vpc = ec2('create-vpc', 'cidr_block' => resource[:cidr])
+    ec2('create-tags', 'resource' => vpc['Vpc']['VpcId'], 'tags' => tags.join(' '))
     @property_hash[:ensure] = :present
   end
 
   def destroy
-    awscli('ec2', 'delete-vpc', 'vpc-id' => resource_id)
+    ec2('delete-vpc', 'vpc-id' => resource_id)
     @property_hash[:ensure] = :absent
   end
 
   def resource_id
-    vpcs = awscli('ec2', 'describe-vpcs', 'filters' => "Name=tag:Name,Values=#{resource[:name]}")
+    vpcs = ec2('describe-vpcs', 'filters' => "Name=tag:Name,Values=#{resource[:name]}")
     vpcs['Vpcs'].map{ |vpc| vpc['VpcId'] }.first
   end
 end

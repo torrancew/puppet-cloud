@@ -2,9 +2,10 @@ require_relative '../../../puppet_x/cloud/aws'
 
 Puppet::Type.type(:subnet).provide(:aws) do
   include PuppetX::Cloud::AWS
+  service :ec2
 
   def self.instances
-    api_object = awscli('ec2', 'describe-subnets')
+    api_object = ec2('describe-subnets')
 
     api_object['Subnets'].map do |subnet|
       tags = {}
@@ -23,18 +24,18 @@ Puppet::Type.type(:subnet).provide(:aws) do
   end
 
   def create
-    subnet = awscli('ec2', 'create-subnet', 'cidr-block' => resource[:cidr], 'vpc-id' => resource[:vpc])
+    subnet = ec2('create-subnet', 'cidr-block' => resource[:cidr], 'vpc-id' => resource[:vpc])
     tag(subnet['Subnet']['SubnetId'], (resource[:metadata] || {}).merge({'Name': resource[:name]}))
     @property_hash[:ensure] = :present
   end
 
   def destroy
-    awscli('ec2', 'delete-subnet', 'subnet-id' => resource_id)
+    ec2('delete-subnet', 'subnet-id' => resource_id)
     @property_hash[:ensure] = :absent
   end
 
   def resource_id
-    subnets = awscli('ec2', 'describe-subnets', 'filters' => "Name=tag:Name,Values=#{resource[:name]}")
+    subnets = ec2('describe-subnets', 'filters' => "Name=tag:Name,Values=#{resource[:name]}")
     subnets['Subnets'].map{ |subnet| subnet['SubnetId'] }.first
   end
 end

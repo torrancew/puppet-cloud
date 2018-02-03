@@ -2,9 +2,10 @@ require_relative '../../../puppet_x/cloud/aws'
 
 Puppet::Type.type(:iam_group).provide(:aws) do
   include PuppetX::Cloud::AWS
+  service :iam
 
   def self.instances
-    api_object = awscli('iam', 'list-groups')
+    api_object = iam('list-groups')
 
     api_object['Groups'].map do |group|
       new({
@@ -15,12 +16,12 @@ Puppet::Type.type(:iam_group).provide(:aws) do
   end
 
   def create
-    awscli('iam', 'create-group', 'group-name' => resource[:name])
+    iam('create-group', 'group-name' => resource[:name])
     @property_hash[:ensure] = :present
   end
 
   def destroy
-    awscli('iam', 'delete-group', 'group-name' => resource[:name])
+    iam('delete-group', 'group-name' => resource[:name])
     @property_hash[:ensure] = :absent
   end
 end
